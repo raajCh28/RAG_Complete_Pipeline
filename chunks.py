@@ -32,7 +32,7 @@ def main():
         print(f"ID: {id_}")
         print(f"Source: {label}")
         print(f"Length: {len(doc)} chars")
-        print(f"Text: {doc[:200]}{'...' if len(doc) > 200 else ''}")
+        print(f"Text: {doc[:300]}{'...' if len(doc) > 300 else ''}")
         print("-" * 60)
 
 

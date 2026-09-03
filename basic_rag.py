@@ -26,7 +26,7 @@ def print_retrieved(query: str, results):
         label = f"{source} (page {page})" if page is not None else source
 
         print(f"#{rank} | Distance: {score:.4f} | {label}")
-        print(doc.page_content[:200] + ("..." if len(doc.page_content) > 200 else ""))
+        print(doc.page_content[:300] + ("..." if len(doc.page_content) > 300 else ""))
         print("-" * 60)
 
 
