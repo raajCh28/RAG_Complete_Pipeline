@@ -48,7 +48,7 @@ def summarize(topic: str, detail_level: str = "detailed, comprehensive"):
         return "No documents found — check ingest.py has run.", []
 
     # print_retrieved(topic, results)
-    context = build_context(results)  # reused as-is from rag.py — same "Source: X" block format works fine here too
+    context = build_context(results)  # reused as-is from basic_rag.py — same "Source: X" block format works fine here too
 
     llm = ChatOpenAI(model=CHAT_MODEL, temperature=0.3)  # slightly higher than QA's 0.2 — synthesis benefits from a bit more natural phrasing than strict fact-copying
     chain = SUMMARY_PROMPT | llm | StrOutputParser()
