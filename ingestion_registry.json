@@ -1,0 +1,17 @@
+{
+    "c:\\users\\rajch\\downloads\\rag_complete_pipeline\\data\\employee\\employees.pdf": {
+        "first_ingested_at": 1788850742
+    },
+    "c:\\users\\rajch\\downloads\\rag_complete_pipeline\\data\\finance\\finance_policy.pdf": {
+        "first_ingested_at": 1788850742
+    },
+    "c:\\users\\rajch\\downloads\\rag_complete_pipeline\\data\\it_security\\security_policy.txt": {
+        "first_ingested_at": 1788850742
+    },
+    "c:\\users\\rajch\\downloads\\rag_complete_pipeline\\data\\leave\\leave_policy.pdf": {
+        "first_ingested_at": 1788850742
+    },
+    "c:\\users\\rajch\\downloads\\rag_complete_pipeline\\data\\medical\\medical_policy.docx": {
+        "first_ingested_at": 1788850742
+    }
+}
