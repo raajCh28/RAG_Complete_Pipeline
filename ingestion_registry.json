@@ -13,5 +13,11 @@
     },
     "c:\\users\\rajch\\downloads\\rag_complete_pipeline\\data\\medical\\medical_policy.docx": {
         "first_ingested_at": 1788850742
+    },
+    "c:\\users\\rajch\\downloads\\rag_complete_pipeline\\data\\employee\\employee_roles.pdf": {
+        "first_ingested_at": 1788852979
+    },
+    "c:\\users\\rajch\\downloads\\rag_complete_pipeline\\data\\medical\\medical_records.docx": {
+        "first_ingested_at": 1788852979
     }
 }

@@ -13,7 +13,7 @@ CHAT_MODEL = os.getenv("CHAT_MODEL", "gpt-4o-mini")
 
 PROMPT = ChatPromptTemplate.from_template(
     "Answer the question using only the context below. "
-    "If the answer isn't in the context, say you don't know.\n\n"
+    "If the answer isn't in the context, say Sorry! I don't have the information of the following topic.\n\n"
     "Context:\n{context}\n\nQuestion: {question}\n\nAnswer:"
 )
 

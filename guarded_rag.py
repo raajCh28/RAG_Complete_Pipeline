@@ -1,331 +1,368 @@
 """
-    Complete Guarded RAG pipeline.
-    Flow:
-        Input Guard
-             ↓
-        Domain Guard
-             ↓
-        Retrieval Guard
-             ↓
-          ChromaDB
-             ↓
-        Output Guard
-             ↓
-           LLM
-             ↓
-          Answer
+Guarded RAG pipeline.
+
+Flow:
+
+    User Query
+         ↓
+    Input Guard
+         ↓
+    Domain Guard
+         ↓
+    Access-Controlled Retrieval
+         ↓
+    Context Guard
+         ↓
+    Answerability Guard
+         ↓
+    Grounded LLM
+         ↓
+       Answer
 """
 
+import os
 import re
 
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
 from retrieved_chunks import get_vectorstore, TOP_K
-from basic_rag import PROMPT, CHAT_MODEL, print_retrieved, build_context
+from basic_rag import print_retrieved, build_context
 
 load_dotenv()
 
+CHAT_MODEL = os.getenv("CHAT_MODEL", "gpt-4o-mini")
 
-# ============================================================
-# INPUT GUARD
-# ============================================================
 
-# Patterns that indicate prompt injection or attempts to
-# override the assistant's instructions.
+# GUARD 1: INPUT GUARD
 BLOCKED_PATTERNS = [
-    r"ignore (all|any|previous|the) instructions",
     r"reveal (your|the) system prompt",
     r"you are now",
-    r"disregard (all|any|previous) rules",
     r"pretend (you are|to be)",
 ]
 
 
 def input_guard(query: str) -> str | None:
-    """
-    Checks the raw user question for common prompt-injection
-    patterns.
-
-    Returns:
-        Rejection reason if blocked.
-        None if the question is allowed.
-    """
-
+    # Returns a reason when the query matches a blocked pattern.
     lowered = query.lower()
 
     for pattern in BLOCKED_PATTERNS:
         if re.search(pattern, lowered):
-            return (
-                f"Blocked: question matched a restricted "
-                f"pattern ('{pattern}')."
-            )
+            return "Blocked: question matched a restricted pattern."
 
     return None
 
 
-# ============================================================
-# DOMAIN GUARD
-# ============================================================
+# GUARD 2: DOMAIN GUARD
 
-DOMAIN_DESCRIPTION = """
-The knowledge base belongs to a company called Test_HCL.
+# Determine whether the user's question belongs to any domain that
+# exists in the current knowledge base.
 
-The available company information covers only these areas:
+DOMAIN_PROMPT = ChatPromptTemplate.from_template(
+    """
+You are a domain classifier for a RAG system.
 
-1. Employee information
-2. Leave policies
-3. Finance and expenses
-4. IT and security
-5. Medical benefits
+Available knowledge-base categories:
+{categories}
 
-A question should be considered IN-DOMAIN if its meaning is
-related to any of these Test_HCL areas.
+Determine whether the user's question belongs to at least one of
+the available categories.
 
-The wording does not need to contain exact keywords from these
-categories. Users may ask questions informally, indirectly,
-or conversationally.
+Return exactly one word:
 
-A question should be considered OUT-OF-DOMAIN if it is unrelated
-to Test_HCL company information, policies, employees, or the
-areas listed above.
-
-Return only one word:
-
-ALLOW
-
+YES
 or
+NO
 
-BLOCK
+Return YES when the question can reasonably be associated with one
+or more of the available categories.
+
+Return NO when the question does not belong to any available category.
+
+Do not answer the question.
+Do not use outside knowledge.
+Only classify the question against the available categories.
+
+Question:
+{question}
+
+Decision:
 """
+)
 
 
-def domain_guard(query: str) -> str | None:
-    """
-    Uses an LLM as a semantic classifier to determine whether
-    the question belongs to the Test_HCL knowledge domain.
+def get_available_categories(vectorstore):
+    # Reads all unique categories currently stored in Chroma.
+    data = vectorstore._collection.get(include=["metadatas"])
 
-    Returns:
-        None if the question is allowed.
-        A rejection reason if the question is outside the domain.
-    """
+    categories = set()
 
-    guard_llm = ChatOpenAI(
+    for metadata in data.get("metadatas", []):
+        category = metadata.get("category")
+
+        if category:
+            categories.add(str(category))
+
+    return sorted(categories)
+
+
+def domain_guard(query: str, vectorstore) -> bool:
+    # Checks whether the question belongs to a category in the knowledge base.
+    categories = get_available_categories(vectorstore)
+
+    if not categories:
+        return False
+
+    llm = ChatOpenAI(
         model=CHAT_MODEL,
         temperature=0
     )
 
-    guard_prompt = f"""
-You are a strict domain classifier for a company knowledge-base
-assistant.
+    chain = DOMAIN_PROMPT | llm | StrOutputParser()
 
-Determine whether the user's question belongs to the allowed
-Test_HCL knowledge domain.
+    decision = chain.invoke({
+        "categories": ", ".join(categories),
+        "question": query
+    })
 
-{DOMAIN_DESCRIPTION}
-
-User question:
-{query}
-
-Return only:
-ALLOW
-or
-BLOCK
-"""
-
-    try:
-        result = guard_llm.invoke(guard_prompt)
-
-        decision = result.content.strip().upper()
-
-        # Remove possible extra whitespace or formatting.
-        decision = decision.replace("`", "").strip()
-
-        if decision == "ALLOW":
-            return None
-
-        if decision == "BLOCK":
-            return (
-                "Blocked: question is outside the Test_HCL "
-                "knowledge domain."
-            )
-
-        # Fail closed if the classifier returns something unexpected.
-        return (
-            "Blocked: domain guard could not safely classify "
-            "the question."
-        )
-
-    except Exception as e:
-        print(f"Domain guard error: {e}")
-
-        # Fail closed for safety.
-        return (
-            "Blocked: domain guard could not process "
-            "the question safely."
-        )
+    return decision.strip().upper() == "YES"
 
 
-# ============================================================
-# RETRIEVAL GUARD
-# ============================================================
+# GUARD 3: ACCESS CONTROL
+# Prevent restricted documents from being retrieved.
+# Retrieval is filtered before the documents can become LLM context.
 
-RESTRICTED_FILES = {
-    "medical.docx"
-}
-
-
-def retrieval_guard_filter():
-    """
-    Creates a Chroma metadata filter that attempts to exclude
-    restricted documents at the database level.
-
-    This is a best-effort filter only.
-    enforce_output_guard() below is the actual enforcement layer.
-    """
-
-    if not RESTRICTED_FILES:
-        return None
-
-    return {
-        "filename": {
-            "$nin": list(RESTRICTED_FILES)
-        }
-    }
+def access_guard_filter():
+    # Retrieves only documents allowed for the current application.
+    return {"access_level": "public"}
 
 
-# ============================================================
-# OUTPUT GUARD
-# ============================================================
+# GUARD 4: CONTEXT GUARD
+# Provide defense-in-depth for access control.
+# The retrieval filter is the primary protection. This second check
+# removes any chunk that is not explicitly public before context is
+# sent to the LLM.
 
-def enforce_output_guard(results):
-    """
-    Explicitly removes restricted documents from retrieved
-    results.
-
-    This provides a second enforcement layer independent of
-    the Chroma metadata filter.
-    """
-
+def enforce_context_guard(results):
+    # Removes every chunk that is not explicitly marked as public.
     safe_results = []
-    blocked_count = 0
 
     for doc, score in results:
+        access_level = str(
+            doc.metadata.get("access_level", "")
+        ).lower()
 
-        filename = doc.metadata.get("filename", "")
-
-        if filename in RESTRICTED_FILES:
-            blocked_count += 1
+        if access_level != "public":
             continue
 
         safe_results.append((doc, score))
 
-    if blocked_count:
-        print(
-            f"Output guard: stripped "
-            f"{blocked_count} restricted chunk(s) "
-            f"from the results."
-        )
-
     return safe_results
 
 
-# ============================================================
-# MAIN GUARDED RAG PIPELINE
-# ============================================================
+# GUARD 5: ANSWERABILITY GUARD
+
+# Check whether the retrieved context actually contains enough information to answer the user's question.
+# This guard therefore checks the relationship between the question and the retrieved context.
+
+# ANSWERABILITY_PROMPT = ChatPromptTemplate.from_template(
+#     """
+# You are an answerability checker for a company RAG system.
+
+# Determine whether the provided context contains enough information
+# to answer the user's question.
+
+# Return exactly one word:
+
+# YES
+# or
+# NO
+
+# Return YES only when the context contains information that directly
+# supports answering the question.
+
+# Return NO when:
+# - the context is unrelated
+# - the context is insufficient
+# - the answer requires information that is not present
+# - the context only partially supports the answer
+
+# Do not use outside knowledge.
+
+# Context:
+# {context}
+
+# Question:
+# {question}
+
+# Decision:
+# """
+# )
+
+
+# def answerability_guard(query: str, context: str) -> bool:
+#     # Returns True only when the retrieved context supports the question.
+#     llm = ChatOpenAI(
+#         model=CHAT_MODEL,
+#         temperature=0
+#     )
+
+#     chain = ANSWERABILITY_PROMPT | llm | StrOutputParser()
+
+#     decision = chain.invoke({
+#         "context": context,
+#         "question": query
+#     })
+
+#     return decision.strip().upper() == "YES"
+
+
+ANSWERABILITY_DISTANCE_THRESHOLD = float(
+    os.getenv("ANSWERABILITY_DISTANCE_THRESHOLD")
+)
+
+
+def answerability_guard(results) -> bool:
+    # Checks whether the best retrieved chunk is close enough to the query.
+    if not results:
+        return False
+
+    best_distance = min(
+        score for _, score in results
+    )
+
+    return best_distance <= ANSWERABILITY_DISTANCE_THRESHOLD
+
+
+# FINAL GROUNDED ANSWER
+
+# Generate the final response only after all guards have passed.
+ANSWER_PROMPT = ChatPromptTemplate.from_template(
+    """
+Answer the question using only the provided company context.
+
+Rules:
+- Use only information contained in the context.
+- Do not use outside knowledge.
+- Do not invent or assume missing information.
+- If the context does not contain the answer, say: "I can't find any relevant information related to this question."
+- Give a concise and direct answer.
+
+Context:
+{context}
+
+Question:
+{question}
+
+Answer:
+"""
+)
+
+
+def generate_answer(query: str, context: str) -> str:
+    # Generates the final answer using only approved context.
+    llm = ChatOpenAI(
+        model=CHAT_MODEL,
+        temperature=0.2
+    )
+
+    chain = ANSWER_PROMPT | llm | StrOutputParser()
+
+    return chain.invoke({
+        "context": context,
+        "question": query
+    })
+
+
+# MAIN RAG PIPELINE
+
+# Execute all guards in the correct order and stop the pipeline when
+# a query fails a security, domain, access, or answerability check.
 
 def ask(query: str, top_k: int = TOP_K):
 
-    # 1. INPUT GUARD
+    # Guard 1:
+    # Block obvious prompt-injection attempts.
     block_reason = input_guard(query)
 
     if block_reason:
         print(block_reason)
-
         return (
             "This question can't be processed as written.",
             []
         )
 
-
-    # 2. DOMAIN GUARD
-    domain_block_reason = domain_guard(query)
-
-    if domain_block_reason:
-        print(domain_block_reason)
-
-        return (
-            "I can only answer questions related to "
-            "Test_HCL employees, leave, finance, IT and security",
-            []
-        )
-
-
-    # 3. RETRIEVAL GUARD
+    # Guard 2:
+    # Reject questions that do not belong to any category currently
+    # available in the knowledge base.
     vectorstore = get_vectorstore()
-    where = retrieval_guard_filter()
 
-    # Request a small buffer above TOP_K so that restricted
-    # chunks removed by the output guard do not unnecessarily
-    # reduce the final number of safe results.
-
-    buffer_k = top_k + len(RESTRICTED_FILES) * 2
-
-    results = vectorstore.similarity_search_with_score(
-        query,
-        k=buffer_k,
-        filter=where
+    if not domain_guard(query, vectorstore):
+        return (
+            "I can only answer questions related to the available "
+            "company information.",
+        []
     )
 
+    # Guard 3:
+    # Retrieve only documents allowed by the access policy.
+    results = vectorstore.similarity_search_with_score(
+        query,
+        k=top_k,
+        filter=access_guard_filter()
+    )
 
-    # 4. OUTPUT GUARD
-    results = enforce_output_guard(results)
-
-    # Keep only the requested number of safe results.
-    results = results[:top_k]
+    # Guard 4:
+    # Remove anything that should not reach the LLM.
+    results = enforce_context_guard(results)
 
     if not results:
         return (
-            "No safe documents were found for this question.",
+            "I can't find any relevant information related to this question.",
             []
         )
 
     print_retrieved(query, results)
     context = build_context(results)
 
-    # GENERATION
-    llm = ChatOpenAI( model=CHAT_MODEL,temperature=0.2)
-    chain = PROMPT | llm | StrOutputParser()
-    answer = chain.invoke({"context": context, "question": query})
+    # Guard 5:
+    # Check whether the retrieved context actually supports an answer.
+    if not answerability_guard(results):
+        return (
+            "I can't find any relevant information related to this question.",
+            []
+        )
 
+    # Generate the final grounded answer.
+    answer = generate_answer(query, context)
 
-    # COLLECT SOURCES
+    # Return only sources that were allowed into the final context.
     sources = sorted(
         set(
             doc.metadata.get(
                 "filename",
-                doc.metadata.get(
-                    "source",
-                    "unknown"
-                )
+                doc.metadata.get("source", "unknown")
             )
             for doc, _ in results
         )
     )
+
     return answer, sources
+
 
 
 if __name__ == "__main__":
     print("Guarded RAG. Type 'exit' to quit.\n")
     while True:
-        q = input("Question: ").strip()
-        if q.lower() in ("exit", "quit"):
+        query = input("Question: ").strip()
+        if query.lower() in ("exit", "quit"):
             break
-        if not q:
+        if not query:
             continue
 
-        answer, sources = ask(q)
+        answer, sources = ask(query)
         print(f"\nAnswer: {answer}")
         if sources:
             print(f"Sources: {', '.join(sources)}")

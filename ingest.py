@@ -19,6 +19,12 @@ CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", 800))
 CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", 200))
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
 
+RESTRICTED_FILES = {
+    file.strip()
+    for file in os.getenv("RESTRICTED_FILES", "").split(",")
+    if file.strip()
+}
+
 # Stores the first ingestion date of every file.
 INGESTION_REGISTRY = os.getenv(
     "INGESTION_REGISTRY",
@@ -112,14 +118,14 @@ def load_documents(data_dir: str):
 def enrich_metadata(docs, registry):
     for doc in docs:
         source = doc.metadata.get("source", "")
-        source_path = Path(source)
+        filename = Path(source).name
 
-        doc.metadata["filename"] = source_path.name
-        doc.metadata["file_type"] = source_path.suffix.lstrip(".").lower()
+        doc.metadata["filename"] = filename
+        doc.metadata["file_type"] = Path(source).suffix.lstrip(".").lower()
         doc.metadata["category"] = get_category(source, DATA_DIR)
-        doc.metadata["first_ingested_at"] = get_first_ingested_at(
-            source,
-            registry
+        doc.metadata["first_ingested_at"] = get_first_ingested_at(source, registry)
+        doc.metadata["access_level"] = (
+            "restricted" if filename in RESTRICTED_FILES else "public"
         )
 
     return docs
