@@ -1,0 +1,305 @@
+rag_answer: |
+  Answer the question using only the context below.
+
+  Use both direct facts and conclusions that follow unambiguously from explicit rules in the context. For a yes/no question about permission or eligibility, identify the governing rule, compare the requested item with the items explicitly allowed by that rule, and answer according to that comparison. When a rule defines a permitted set and states that other items are not automatically eligible or permitted, treat an item outside that set as not permitted under that rule unless the context states an applicable exception. Do not require the context to repeat the exact wording of the question. If the context has no governing rule and does not logically entail an answer, say Sorry! I don't have the information of the following topic.
+
+  Context: {context}
+  
+  Question: {question}
+  
+  Answer:
+
+query_rewrite: |
+  Rewrite the following user question into a clear, standalone search query suitable for retrieving relevant document chunks. Keep it concise and factual. Output only the rewritten query, nothing else.
+
+  Question: {question}
+
+  Rewritten query:
+
+decompose: |
+  Determine whether the question contains multiple independent questions.
+
+  Keep it as ONE question when all requested information is about the same subject, topic, or entity.
+
+  Split it when the question contains separate questions about different subjects, topics, or entities, even if there is no separator.
+
+  Do not split multiple attributes requested about the same subject.
+
+  Do not invent or add anything.
+
+  Return ONLY a JSON list of strings.
+
+  Question: {question}
+
+
+decompose_answer: |
+  Answer the question(s) below using only the context provided. Use both direct facts and conclusions that follow unambiguously from explicit rules in the context. For a yes/no question about permission or eligibility, identify the governing rule, compare the requested item with the items explicitly allowed by that rule, and answer according to that comparison. When a rule defines a permitted set and states that other items are not automatically eligible or permitted, treat an item outside that set as not permitted under that rule unless the context states an applicable exception. Do not require the context to repeat the exact wording of the question. If there is more than one question, address each one separately and clearly. If a specific part cannot be answered from the context or logically entailed by it, say so for that part only — do not refuse the whole answer just because one part is missing.
+
+  Context:
+  {context}
+
+  Question(s):
+  {question}
+
+  Answer:
+
+conversation_condense: |
+  "Determine whether the current question depends on the conversation history."
+    "A question is a follow-up only if understanding it requires information "
+    "from a previous turn, such as a pronoun, vague reference, omitted subject, "
+    "or continuation of the previous topic."
+    "If it is a follow-up, rewrite it as a fully standalone question."
+    "If it is a new independent question, return it unchanged."
+    "Conversation history:{history}"
+    "Current question:{question}"
+    "Return exactly two lines:"
+    "FOLLOW_UP: YES or NO"
+    "QUESTION: <standalone question>"
+
+conversation_answer: |
+  "You are answering questions using only the context below. "
+  "Use both direct facts and conclusions that follow unambiguously from explicit rules in the context. "
+  "For a yes/no question about permission or eligibility, identify the governing rule, compare the requested item with the items explicitly allowed by that rule, and answer according to that comparison. "
+  "When a rule defines a permitted set and states that other items are not automatically eligible or permitted, treat an item outside that set as not permitted under that rule unless the context states an applicable exception. "
+  "Do not require the context to repeat the exact wording of the question. "
+    "If the answer isn't in the context, say Sorry! I don't have the information of the following topic."
+    "Conversation so far:{history}"
+    "Context:{context}"
+    "Current question: {question}"
+    "Answer:"
+
+summary: |
+  First, determine whether the context below is actually related to the given topic. If NONE of the context is meaningfully related to the topic, respond with exactly: "No relevant content found for this topic in the available documents." Do not force a connection, and do not summarize unrelated content as though it addresses the topic.
+
+  If the context IS related, write a {detail_level} summary synthesizing a coherent overview across ALL the relevant context below — do not just answer a single question, and do not simply list chunks one by one. Group related points together even if they come from different sources. Preserve explicit permissions, restrictions, limits, eligibility conditions, and exceptions accurately, and include conclusions that follow unambiguously from those rules without inventing details. When a rule defines a permitted set and states that other items are not automatically eligible or permitted, preserve that restriction for items outside the set unless the context states an applicable exception.
+
+  Context:
+  {context}
+
+  Topic: {topic}
+
+  Summary:
+
+step_back: |
+  Determine whether the question would benefit from a broader conceptual question for retrieval.
+
+  Use Step-Back only when the question is a specific scenario, condition, process detail, or narrow policy question where broader policy or background information could help.
+
+  Do NOT use Step-Back for:
+  - specific factual lookups
+  - questions that are already broad or general
+
+  If Step-Back is needed, create one broader question that keeps the same topic and intent. Do not change the subject or invent a different topic.
+
+  If Step-Back is not needed, return an empty step_back_question.
+
+  Return the decision in the required structured format.
+
+  Question:
+  {question}
+
+step_back_answer: |
+  The context below combines information retrieved from the original question and, when applicable, a broader Step-Back question.
+
+  Answer the original question using only information actually present in the context. Use both direct facts and conclusions that follow unambiguously from explicit rules in the context. For a yes/no question about permission or eligibility, identify the governing rule, compare the requested item with the items explicitly allowed by that rule, and answer according to that comparison. When a rule defines a permitted set and states that other items are not automatically eligible or permitted, treat an item outside that set as not permitted under that rule unless the context states an applicable exception.
+
+  The wording in the context may be different from the wording of the question. Use relevant information even when it is expressed differently.
+
+  Do not invent facts or make unsupported assumptions.
+
+  If the context genuinely does not contain enough information to answer the question, say Sorry! I don't have the information of the following topic.
+
+  Question:
+  {question}
+
+  Context:
+  {context}
+
+  Answer:
+
+self_correct_grade: |
+  Context: 
+  {context}
+  
+  Question: 
+  {question}
+
+  Draft answer: {answer}
+
+  Answer YES only if BOTH of these are true:
+  1. The draft answer is fully supported by the context above, with no unsupported claims or guesses.
+  2. The draft answer actually attempts to answer the question — it is NOT a refusal, a non-answer, or a statement that the information isn't available.
+
+  If either condition fails, respond NO. 
+
+  Respond with only YES or NO.
+
+self_correct_rewrite: |
+  The following question could not be answered well from the documents retrieved so far. Rewrite it as a broader or differently phrased search query that might surface more relevant content. Output only the rewritten query, nothing else.
+  
+  Original question: {question}
+  
+  Previous search query: {search_query}
+  
+  New search query:
+
+citation_answer: |
+  Answer the question using only the numbered context blocks below.
+
+  Write the final answer in clean prose without inserting citation markers in the middle of sentences.
+  Use both direct facts and conclusions that follow unambiguously from explicit rules in the numbered context. For a yes/no question about permission or eligibility, identify the governing rule, compare the requested item with the items explicitly allowed by that rule, and answer according to that comparison. When a rule defines a permitted set and states that other items are not automatically eligible or permitted, treat an item outside that set as not permitted under that rule unless the context states an applicable exception. Support the conclusion with citations to the relevant numbered blocks.
+  After the final sentence, add a single citation block at the end using the relevant reference numbers in square brackets, for example: [1][3][4].
+  Only use reference numbers that actually appear below — never invent one.
+  If the answer isn't in the context, say "Sorry! I don't have the information to answer that question" and cite nothing.
+
+  Context:
+  {context}
+
+  Question: {question}
+
+  Answer:
+
+router: |
+  Classify the following question into exactly ONE of these categories:
+
+  qa - a specific fact-lookup question answerable by finding one or a few relevant passages. This includes questions about a specific process, policy rule, requirement, procedure, condition, fact, or a single employee/entity record. A request about one employee, person, record, or case remains qa even if it says "summarize" or "overview" when it is still about one specific entity.
+
+  summarize - a request for a broad overview, synthesis, or general understanding across several documents or sections. Use summarize when the user asks for a brief overview, summary, high-level explanation, policy outline, or general understanding of a topic. Use it for policies, procedures, or subject-level explanations that span a wider body of content, not for a single employee/person record or one narrow fact lookup.
+
+  unsupported - a question that requires counting, aggregation, comparison across many records, or structured calculations that this text-only RAG system cannot reliably do. Examples: "How many employees earn less than X", "What is the average salary", "How many employees are in the Cloud team".
+
+  Classification rules:
+  1. Use qa for focused factual questions, even when the answer has multiple steps or points.
+  2. Use qa for a single person, employee, record, case, or entity, even if the wording includes "summarize", "overview", or "brief detail".
+  3. Use summarize for broad, high-level, or overview-style requests about a policy, process, or topic across multiple sections/documents, such as "brief detail of the leave policy", "overview of the security policy", "summarize the hiring policy", or "give me an overview of X".
+  4. Use summarize for general policy explanations, not just explicit "summarize" wording.
+  5. Use unsupported only for exact counting, aggregation, or computation across many records or structured datasets.
+  6. Do not classify a question as unsupported just because the answer might not be present in the documents.
+  7. Respond with ONLY one word: qa, summarize, or unsupported.
+
+  Question: {question}
+
+agentic_system: |
+  You answer questions by using the search_documents tool to look up relevant information from the company's documents. You must use the tool at least once before answering any question — never answer directly from your own general knowledge, even if you think you know the answer. You may call the tool more than once, with different queries, if a single search does not cover everything the question is asking. Once you have enough information, respond with your final answer directly. If the documents do not contain relevant information for this question, say so honestly rather than guessing or using outside knowledge. Use both direct facts and conclusions that follow unambiguously from explicit rules in the retrieved documents. For permission or eligibility questions, apply the governing rule to the requested item, including stated limits and exceptions.
+
+agentic_forced_final: |
+  Stopping further search ({reason}). Based only on what was actually found above, give your best final answer now. If the information found does not answer the question, say so honestly instead of guessing. Apply explicit rules and their stated limits or exceptions to the requested item when the retrieved information logically entails an answer.
+
+rerank_score: |
+  You are a document relevance evaluator.
+
+  Your task is to determine how relevant the following document
+  chunk is to the user's question.
+
+  Give a relevance score from 0 to 10:
+
+  10 = Directly and completely answers the question
+  8-9 = Highly relevant and contains most of the required information
+  6-7 = Relevant but only partially answers the question
+  4-5 = Somewhat related but does not answer the question well
+  2-3 = Weakly related
+  0-1 = Not relevant
+
+  IMPORTANT:
+  - Judge relevance to the question, not writing quality.
+  - Do not use information outside the provided chunk.
+  - Return ONLY the numeric score.
+  - Do not provide an explanation.
+
+  User Question:
+  {question}
+
+  Document Chunk:
+  {document}
+
+  Relevance Score:
+
+guarded_domain: |
+  You are a domain classifier for a RAG system.
+
+  Available knowledge-base categories:
+  {categories}
+
+  Determine whether the user's question belongs to at least one of
+  the available categories.
+
+  Return exactly one word:
+
+  YES
+  or
+  NO
+
+  Return YES when the question can reasonably be associated with one
+  or more of the available categories.
+
+  Return NO when the question does not belong to any available category.
+
+  Do not answer the question.
+  Do not use outside knowledge.
+  Only classify the question against the available categories.
+
+  Question:
+  {question}
+
+  Decision:
+
+guarded_answer: |
+  Answer the question using only the provided company context.
+
+  Rules:
+  - Use only information contained in the context.
+  - Do not use outside knowledge.
+  - Do not invent or assume missing information.
+  - Use both direct facts and conclusions that follow unambiguously from explicit rules in the context. For permission or eligibility questions, apply the governing rule to the requested item, including stated limits and exceptions. When a rule defines a permitted set and states that other items are not automatically eligible or permitted, treat an item outside that set as not permitted under that rule unless the context states an applicable exception. Do not require the context to repeat the exact wording of the question.
+  - If the context has no governing rule and does not state or logically entail the answer, say: "I can't find any relevant information related to this question." Do not use that refusal when the context provides a governing rule that logically determines the answer. When the context states that only some members of a class are eligible or permitted and that other members require specific permission, a named member not included in the permitted set is not eligible or permitted unless an exception is stated. This is a conclusion from the context, not outside knowledge.
+  - Give a concise and direct answer.
+
+  Context:
+  {context}
+
+  Question:
+  {question}
+
+  Answer:
+
+mvr_representation: |
+  Analyze the following document chunk for multi-vector retrieval.
+
+  Generate:
+  1. A concise summary.
+  2. Three realistic questions that this chunk could answer.
+
+  Make the three questions intentionally different:
+  - Question 1: Ask directly about an important fact or rule in the chunk.
+  - Question 2: Ask as a practical real-world problem an employee might face.
+  - Question 3: Ask the same kind of information using different wording from the document.
+
+  Questions should reflect how a real user might ask, not just repeat the wording of the document.
+  Do not repeat the same intent.
+
+  Return exactly:
+
+  SUMMARY:
+  <summary>
+
+  QUESTIONS:
+  <question 1>
+  <question 2>
+  <question 3>
+
+  Do not add anything else.
+
+  DOCUMENT CHUNK:
+  {chunk}
+
+mvr_answer: |
+  Answer the question using only the context below.
+  Use both direct facts and conclusions that follow unambiguously from explicit rules in the context. For permission or eligibility questions, apply the governing rule to the requested item, including stated limits and exceptions. When a rule defines a permitted set and states that other items are not automatically eligible or permitted, treat an item outside that set as not permitted under that rule unless the context states an applicable exception. Do not require the context to repeat the exact wording of the question. If the context does not state or logically entail the answer, say you don't know.
+
+  Context:
+  {context}
+
+  Question:
+  {question}
+
+  Answer:
