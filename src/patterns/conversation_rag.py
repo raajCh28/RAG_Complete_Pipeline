@@ -3,35 +3,16 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
-from retrieved_chunks import get_vectorstore, TOP_K
-from basic_rag import CHAT_MODEL, build_context, print_retrieved
+from src.core.retrieved_chunks import get_vectorstore, TOP_K
+from src.core.basic_rag import CHAT_MODEL, build_context, print_retrieved
+from src.core.prompts import load_prompt
 
 load_dotenv()
 
 MAX_HISTORY_TURNS = 5
 
-CONDENSE_PROMPT = ChatPromptTemplate.from_template(
-    "Determine whether the current question depends on the conversation history.\n\n"
-    "A question is a follow-up only if understanding it requires information "
-    "from a previous turn, such as a pronoun, vague reference, omitted subject, "
-    "or continuation of the previous topic.\n\n"
-    "If it is a follow-up, rewrite it as a fully standalone question.\n"
-    "If it is a new independent question, return it unchanged.\n\n"
-    "Conversation history:\n{history}\n\n"
-    "Current question:\n{question}\n\n"
-    "Return exactly two lines:\n"
-    "FOLLOW_UP: YES or NO\n"
-    "QUESTION: <standalone question>"
-)
-
-ANSWER_PROMPT = ChatPromptTemplate.from_template(
-    "You are answering questions using only the context below. "
-    "If the answer isn't in the context, say you don't know.\n\n"
-    "Conversation so far:\n{history}\n\n"
-    "Context:\n{context}\n\n"
-    "Current question: {question}\n\nAnswer:"
-)
-
+CONDENSE_PROMPT = load_prompt("conversation_condense")
+ANSWER_PROMPT = load_prompt("conversation_answer")
 
 def format_history(chat_history: list) -> str:
     if not chat_history:

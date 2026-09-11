@@ -1,9 +1,14 @@
 import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import chromadb
 from dotenv import load_dotenv
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+from src.core.prompts import load_prompt
 
 load_dotenv()
 
@@ -15,18 +20,7 @@ TOP_K = int(os.getenv("TOP_K", 5))
 embeddings = OpenAIEmbeddings(model=EMBEDDING_MODEL)
 llm = ChatOpenAI(model=CHAT_MODEL, temperature=0)
 
-PROMPT = ChatPromptTemplate.from_template("""
-Answer the question using only the context below.
-If the answer is not present, say you don't know.
-
-Context:
-{context}
-
-Question:
-{question}
-
-Answer:
-""")
+PROMPT = load_prompt("mvr_answer")
 
 
 # Connects to the MVR collection in Chroma.

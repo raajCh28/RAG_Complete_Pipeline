@@ -3,8 +3,9 @@ from langchain_openai import ChatOpenAI
 from langchain_core.tools import tool
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from retrieved_chunks import get_vectorstore, TOP_K
-from basic_rag import CHAT_MODEL
+from src.core.basic_rag import CHAT_MODEL
+from src.core.prompts import load_raw
+from src.core.retrieved_chunks import get_vectorstore, TOP_K
 
 load_dotenv()
 
@@ -15,17 +16,7 @@ STALL_LIMIT = 2  # consecutive iterations with NO new chunks found before giving
 # requires searching before answering. This is layer 1 (a request to the
 # model) — layer 2, the actual enforcement, is finalize() below, which
 # doesn't trust the model to have obeyed this.
-SYSTEM_MESSAGE = SystemMessage(content=(
-    "You answer questions ONLY using information found via the "
-    "search_documents tool. You must use the tool at least once before "
-    "answering any question — never answer directly from your own general "
-    "knowledge, even if you think you know the answer. You may call the "
-    "tool more than once, with different queries, if a single search does "
-    "not cover everything the question is asking. Once you have enough "
-    "information, respond with your final answer directly. If the "
-    "documents do not contain relevant information for this question, say "
-    "so honestly rather than guessing or using outside knowledge."
-))
+SYSTEM_MESSAGE = SystemMessage(content=load_raw("agentic_system"))
 
 
 def chunk_key(doc):
@@ -44,9 +35,9 @@ def make_search_tool(sources_seen: set, chunks_seen: set):
     @tool
     def search_documents(query: str) -> str:
         """Search the company's documents for information relevant to the
-        given query. Use this whenever you need more information to answer
-        the question. You can call this again with a different query if
-        your first search didn't cover everything you need."""
+        given query. Use this whenever we need more information to answer
+        the question. we can call this again with a different query if
+        our first search didn't cover everything we need."""
         vectorstore = get_vectorstore()
         results = vectorstore.similarity_search_with_score(query, k=TOP_K)
 
@@ -127,12 +118,9 @@ def ask(query: str, max_iterations: int = MAX_ITERATIONS):
 
     reason = stopped_early_reason or f"reached the {max_iterations}-iteration limit"
     plain_llm = ChatOpenAI(model=CHAT_MODEL, temperature=0.2)
-    forced_prompt = messages + [HumanMessage(content=(
-        f"Stopping further search ({reason}). Based only on what was "
-        "actually found above, give your best final answer now. If the "
-        "information found does not answer the question, say so honestly "
-        "instead of guessing."
-    ))]
+    forced_prompt = messages + [HumanMessage(content=load_raw(
+        "agentic_forced_final"
+    ).format(reason=reason))]
     final_response = plain_llm.invoke(forced_prompt)
     llm_calls += 1
 

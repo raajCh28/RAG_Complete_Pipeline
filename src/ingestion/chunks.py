@@ -4,11 +4,11 @@ import chromadb
 
 load_dotenv()
 
-COLLECTION_NAME = os.getenv("COLLECTION_NAME", "new_documents")
+COLLECTION_NAME = os.getenv("COLLECTION_NAME")
 
 client = chromadb.HttpClient(
-    host=os.getenv("CHROMA_HOST", "172.31.32.85"),
-    port=int(os.getenv("CHROMA_PORT", 8000)),
+    host=os.getenv("CHROMA_HOST"),
+    port=int(os.getenv("CHROMA_PORT")),
 )
 
 

@@ -2,21 +2,16 @@ import os
 
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
-from retrieved_chunks import retrieve_with_scores
+from src.core.retrieved_chunks import retrieve_with_scores
+from src.core.prompts import load_prompt
 
 load_dotenv()
 
-CHAT_MODEL = os.getenv("CHAT_MODEL", "gpt-4o-mini")
+CHAT_MODEL = os.getenv("CHAT_MODEL")
 
-PROMPT = ChatPromptTemplate.from_template(
-    "Answer the question using only the context below. "
-    "If the answer isn't in the context, say Sorry! I don't have the information of the following topic.\n\n"
-    "Context:\n{context}\n\nQuestion: {question}\n\nAnswer:"
-)
-
+PROMPT = load_prompt("rag_answer")
 
 def print_retrieved(query: str, results):
     print(f"\nTop {len(results)} retrieved chunks for: \"{query}\"\n")

@@ -9,3 +9,4 @@ pymupdf
 docx2txt
 python-dotenv
 rank_bm25
+pyyaml

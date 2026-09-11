@@ -5,39 +5,16 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
-from retrieved_chunks import get_vectorstore, TOP_K
-from basic_rag import CHAT_MODEL, build_context
+from src.core.retrieved_chunks import get_vectorstore, TOP_K
+from src.core.basic_rag import CHAT_MODEL, build_context
+from src.core.prompts import load_prompt
 
 load_dotenv()
 
-DECOMPOSE_PROMPT = ChatPromptTemplate.from_template(
-    "Break the following question into 1 to 4 simpler, standalone sub-questions "
-    "that together cover everything being asked. Each sub-question must focus on "
-    "exactly ONE distinct topic — never merge two unrelated topics into a single "
-    "sub-question, even if the original question runs them together with no clear "
-    "separator like 'and'.\n\n"
-    "If the question is already a single, atomic topic, return it unchanged as the "
-    "only item.\n\n"
-    "Example:\n"
-    "Question: what is leave policy time limit for expense claim\n"
-    "Sub-questions: [\"What is the leave policy?\", \"What is the time limit for submitting an expense claim?\"]\n\n"
-    "Respond with ONLY a JSON list of strings, nothing else.\n\n"
-    "Question: {question}"
-)
+DECOMPOSE_PROMPT = load_prompt("decompose")
 
-# NEW: dedicated answer prompt for this file (no longer reuses rag.py's PROMPT).
-# Two changes from the shared PROMPT that fix the "I don't know" bug:
-# 1. Explicitly allows answering multiple questions separately.
-# 2. Only says "don't know" about the SPECIFIC part that's missing,
-#    instead of refusing the whole answer because of one gap.
-ANSWER_PROMPT = ChatPromptTemplate.from_template(
-    "Answer the question(s) below using only the context provided. "
-    "If there is more than one question, address each one separately and clearly. "
-    "If a specific part cannot be answered from the context, say so for that part "
-    "only — do not refuse the whole answer just because one part is missing.\n\n"
-    "Context:\n{context}\n\nQuestion(s):\n{question}\n\nAnswer:"
-)
-
+#dedicated answer prompt for this file.
+ANSWER_PROMPT = load_prompt("decompose_answer")
 
 def decompose_query(query: str) -> list[str]:
     """Sends the original question to the LLM and gets back a list of

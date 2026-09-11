@@ -10,14 +10,15 @@ from langchain_community.document_loaders import PyPDFLoader, TextLoader, Docx2t
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
+from src.ingestion.employee_chunking import split_employee_records
 
 load_dotenv()
 
-DATA_DIR = os.getenv("DATA_DIR", "data")
-COLLECTION_NAME = os.getenv("COLLECTION_NAME", "new_documents")
-CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", 800))
-CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", 200))
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+DATA_DIR = os.getenv("DATA_DIR")
+COLLECTION_NAME = os.getenv("COLLECTION_NAME")
+CHUNK_SIZE = int(os.getenv("CHUNK_SIZE"))
+CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP"))
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL")
 
 RESTRICTED_FILES = {
     file.strip()
@@ -133,8 +134,8 @@ def enrich_metadata(docs, registry):
 
 def get_chroma_client():
     return chromadb.HttpClient(
-        host=os.getenv("CHROMA_HOST", "localhost"),
-        port=int(os.getenv("CHROMA_PORT", 8000)),
+        host=os.getenv("CHROMA_HOST"),
+        port=int(os.getenv("CHROMA_PORT")),
     )
 
 
@@ -175,6 +176,7 @@ def main():
         chunk_overlap=CHUNK_OVERLAP
     )
 
+    docs = split_employee_records(docs)
     chunks = splitter.split_documents(docs)
 
     file_count = len(

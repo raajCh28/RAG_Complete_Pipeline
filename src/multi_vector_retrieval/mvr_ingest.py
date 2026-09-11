@@ -1,15 +1,18 @@
 import os
 import glob
+import sys
 import uuid
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import chromadb
 from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader, TextLoader, Docx2txtLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+from src.core.prompts import load_prompt
 
 load_dotenv()
 
@@ -32,36 +35,7 @@ LOADERS = {
 llm = ChatOpenAI(model=CHAT_MODEL, temperature=0)
 embeddings = OpenAIEmbeddings(model=EMBEDDING_MODEL)
 
-REPRESENTATION_PROMPT = ChatPromptTemplate.from_template("""
-Analyze the following document chunk for multi-vector retrieval.
-
-Generate:
-1. A concise summary.
-2. Three realistic questions that this chunk could answer.
-
-Make the three questions intentionally different:
-- Question 1: Ask directly about an important fact or rule in the chunk.
-- Question 2: Ask as a practical real-world problem an employee might face.
-- Question 3: Ask the same kind of information using different wording from the document.
-
-Questions should reflect how a real user might ask, not just repeat the wording of the document.
-Do not repeat the same intent.
-
-Return exactly:
-
-SUMMARY:
-<summary>
-
-QUESTIONS:
-<question 1>
-<question 2>
-<question 3>
-
-Do not add anything else.
-
-DOCUMENT CHUNK:
-{chunk}
-""")
+REPRESENTATION_PROMPT = load_prompt("mvr_representation")
 
 representation_chain = REPRESENTATION_PROMPT | llm | StrOutputParser()
 

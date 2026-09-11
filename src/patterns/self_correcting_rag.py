@@ -3,8 +3,9 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
-from retrieved_chunks import get_vectorstore, TOP_K
-from basic_rag import CHAT_MODEL, build_context, PROMPT
+from src.core.retrieved_chunks import get_vectorstore, TOP_K
+from src.core.basic_rag import CHAT_MODEL, build_context, PROMPT
+from src.core.prompts import load_prompt
 
 load_dotenv()
 
@@ -13,24 +14,11 @@ MAX_ATTEMPTS = 3
 # Judges whether a draft answer is actually backed by the given context,
 # separate from whatever call produced the draft, so grading isn't biased
 # by the same reasoning that generated it.
-GRADE_PROMPT = ChatPromptTemplate.from_template(
-    "Context:\n{context}\n\n"
-    "Question: {question}\n"
-    "Draft answer: {answer}\n\n"
-    "Is the draft answer FULLY supported by the context above, with no "
-    "unsupported claims or guesses? Respond with only YES or NO."
-)
+GRADE_PROMPT = load_prompt("self_correct_grade")
 
 # Used only when the draft failed grading — broadens/rephrases the query
 # to give retrieval a better shot on the next attempt.
-REWRITE_PROMPT = ChatPromptTemplate.from_template(
-    "The following question could not be answered well from the documents "
-    "retrieved so far. Rewrite it as a broader or differently phrased search "
-    "query that might surface more relevant content. Output only the "
-    "rewritten query, nothing else.\n\nOriginal question: {question}\n"
-    "Previous search query: {search_query}\n\nNew search query:"
-)
-
+REWRITE_PROMPT = load_prompt("self_correct_rewrite")
 
 def retrieve(search_query: str, top_k: int):
     vectorstore = get_vectorstore()
@@ -45,14 +33,6 @@ def generate_draft(original_question: str, context: str) -> str:
     return chain.invoke({"context": context, "question": original_question})
 
 
-def is_dont_know(draft: str) -> bool:
-    """An 'I don't know' answer is trivially 'grounded' (it makes no
-    unsupported claims), so a plain groundedness check would wrongly accept
-    it as a success. Treat it as a failure worth retrying instead."""
-    text = draft.lower()
-    return "don't know" in text or "cannot answer" in text or "no information" in text
-
-
 def grade_answer(original_question: str, context: str, draft_answer: str) -> bool:
     llm = ChatOpenAI(model=CHAT_MODEL, temperature=0)
     chain = GRADE_PROMPT | llm | StrOutputParser()
@@ -61,7 +41,7 @@ def grade_answer(original_question: str, context: str, draft_answer: str) -> boo
         "question": original_question,
         "answer": draft_answer,
     }).strip().upper()
-    return verdict.startswith("YES") and not is_dont_know(draft_answer)
+    return verdict.startswith("YES")
 
 
 def rewrite_search_query(original_question: str, previous_search_query: str) -> str:
@@ -127,3 +107,8 @@ if __name__ == "__main__":
         if sources:
             print(f"Sources: {', '.join(sources)}")
         print()
+
+
+# sample question to test 
+# last year i used 6 casual leaves, how can i add the remaining leaves to this year?
+# what is the designation of emp002 and what are roles of him?

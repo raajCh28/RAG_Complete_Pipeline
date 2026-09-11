@@ -1,39 +1,23 @@
+import os
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
-from retrieved_chunks import get_vectorstore
-from basic_rag import CHAT_MODEL, print_retrieved, build_context
+from src.core.retrieved_chunks import get_vectorstore
+from src.core.basic_rag import CHAT_MODEL, print_retrieved, build_context
+from src.core.prompts import load_prompt
+
 
 load_dotenv()
 
 # summarization's goal is coverage across the whole collection, not precision on a single best match.
-BROAD_TOP_K = 12
+BROAD_TOP_K = int(os.getenv("BROAD_TOP_K"))
 
-# detail_level is plain text injected into the prompt (e.g. "brief, 3-4
-# sentence" or "detailed, comprehensive") — lets length/depth be controlled
-# per call with no code changes, matching the "control length & detail"
-# idea from the original pattern description.
-SUMMARY_PROMPT = ChatPromptTemplate.from_template(
-    "First, determine whether the context below is actually related to the "
-    "given topic. If NONE of the context is meaningfully related to the "
-    "topic, respond with exactly: \"No relevant content found for this topic "
-    "in the available documents.\" Do not force a connection, and do not "
-    "summarize unrelated content as though it addresses the topic.\n\n"
-    "If the context IS related, write a {detail_level} summary synthesizing "
-    "a coherent overview across ALL the relevant context below — do not just "
-    "answer a single question, and do not simply list chunks one by one. "
-    "Group related points together even if they come from different sources.\n\n"
-    "Context:\n{context}\n\nTopic: {topic}\n\nSummary:"
-)
-
+SUMMARY_PROMPT = load_prompt("summary")
 
 def retrieve_broad(topic: str, top_k: int = BROAD_TOP_K):
-    """Retrieves a WIDE set of chunks relevant to the topic across the whole
-    collection — no file restriction. This is the key structural difference
-    from every other pattern file: coverage over precision, so every
-    document touching the topic gets a chance to contribute."""
+    """Retrieves a WIDE set of chunks relevant to the topic across the whole collection."""
     vectorstore = get_vectorstore()
     return vectorstore.similarity_search_with_score(topic, k=top_k)
 
@@ -48,7 +32,7 @@ def summarize(topic: str, detail_level: str = "detailed, comprehensive"):
         return "No documents found — check ingest.py has run.", []
 
     # print_retrieved(topic, results)
-    context = build_context(results)  # reused as-is from basic_rag.py — same "Source: X" block format works fine here too
+    context = build_context(results)  # reused as-is from basic_rag.py
 
     llm = ChatOpenAI(model=CHAT_MODEL, temperature=0.3)  # slightly higher than QA's 0.2 — synthesis benefits from a bit more natural phrasing than strict fact-copying
     chain = SUMMARY_PROMPT | llm | StrOutputParser()

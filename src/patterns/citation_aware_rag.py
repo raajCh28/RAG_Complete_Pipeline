@@ -1,24 +1,18 @@
+import os
 import re
 
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
-from retrieved_chunks import get_vectorstore, TOP_K
-from basic_rag import CHAT_MODEL
+from src.core.retrieved_chunks import get_vectorstore
+from src.core.prompts import load_prompt
 
 load_dotenv()
 
-CITATION_PROMPT = ChatPromptTemplate.from_template(
-    "Answer the question using only the numbered context blocks below. "
-    "After every claim or sentence that relies on a specific block, add its "
-    "reference number in square brackets immediately after it, e.g. [1] or [2]. "
-    "If a sentence draws on multiple blocks, cite all of them, e.g. [1][3]. "
-    "Only use reference numbers that actually appear below — never invent one. "
-    "If the answer isn't in the context, say you don't know and cite nothing.\n\n"
-    "Context:\n{context}\n\nQuestion: {question}\n\nAnswer:"
-)
+CHAT_MODEL = os.getenv("CHAT_MODEL", "gpt-4o-mini")
+DEFAULT_TOP_K = int(os.getenv("TOP_K", "4"))
+CITATION_PROMPT = load_prompt("citation_answer")
 
 
 def build_numbered_context(results):
@@ -46,9 +40,8 @@ def find_cited_numbers(answer: str) -> set:
 
 
 def check_citations(answer: str, references: dict):
-    """Flags a citation number the model invented that was never actually
-    provided (hallucinated citation), and separately notes chunks that were
-    retrieved but never cited at all (may be fine — just worth a glance)."""
+    """Raises if the model invents a citation that was never provided.
+    Also warns about chunks that were retrieved but never cited."""
     cited = find_cited_numbers(answer)
     valid = set(references.keys())
 
@@ -56,19 +49,30 @@ def check_citations(answer: str, references: dict):
     unused = valid - cited
 
     if invalid:
-        print(f"Warning: answer cites {sorted(invalid)} — not in the retrieved context (hallucinated citation).")
+        raise ValueError(
+            f"Hallucinated citation(s): {sorted(invalid)}. "
+            "The answer referenced context numbers that were not retrieved."
+        )
+
     if unused:
         print(f"Note: chunk(s) {sorted(unused)} were retrieved but never cited in the answer.")
 
+    return True
 
-def print_references(references: dict):
+
+def print_references(references: dict, results: list | None = None):
     print("\nReferences:")
     for i, ref in references.items():
-        print(f"  [{i}] {ref['label']}")
+        distance = results[i - 1][1] if results and i - 1 < len(results) else "?"
+        print(f"\n  [{i}] {ref['label']} | Distance: {distance}")
         print(f"      \"{ref['snippet']}...\"")
+        print("      " + "-" * 56)
 
 
-def ask(query: str, top_k: int = TOP_K):
+def ask(query: str, top_k: int | None = None):
+    if top_k is None:
+        top_k = DEFAULT_TOP_K
+
     vectorstore = get_vectorstore()
     results = vectorstore.similarity_search_with_score(query, k=top_k)
 
@@ -83,7 +87,7 @@ def ask(query: str, top_k: int = TOP_K):
 
     check_citations(answer, references)
 
-    return answer, references
+    return answer, references, results
 
 
 if __name__ == "__main__":
@@ -95,8 +99,8 @@ if __name__ == "__main__":
         if not q:
             continue
 
-        answer, references = ask(q)
+        answer, references, results = ask(q)
         print(f"\nAnswer: {answer}")
         if references:
-            print_references(references)
+            print_references(references, results)
         print()

@@ -25,11 +25,11 @@ import re
 
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
-from retrieved_chunks import get_vectorstore, TOP_K
-from basic_rag import print_retrieved, build_context
+from src.core.retrieved_chunks import get_vectorstore, TOP_K
+from src.core.basic_rag import print_retrieved, build_context
+from src.core.prompts import load_prompt
 
 load_dotenv()
 
@@ -60,37 +60,7 @@ def input_guard(query: str) -> str | None:
 # Determine whether the user's question belongs to any domain that
 # exists in the current knowledge base.
 
-DOMAIN_PROMPT = ChatPromptTemplate.from_template(
-    """
-You are a domain classifier for a RAG system.
-
-Available knowledge-base categories:
-{categories}
-
-Determine whether the user's question belongs to at least one of
-the available categories.
-
-Return exactly one word:
-
-YES
-or
-NO
-
-Return YES when the question can reasonably be associated with one
-or more of the available categories.
-
-Return NO when the question does not belong to any available category.
-
-Do not answer the question.
-Do not use outside knowledge.
-Only classify the question against the available categories.
-
-Question:
-{question}
-
-Decision:
-"""
-)
+DOMAIN_PROMPT = load_prompt("guarded_domain")
 
 
 def get_available_categories(vectorstore):
@@ -164,61 +134,6 @@ def enforce_context_guard(results):
 
 # GUARD 5: ANSWERABILITY GUARD
 
-# Check whether the retrieved context actually contains enough information to answer the user's question.
-# This guard therefore checks the relationship between the question and the retrieved context.
-
-# ANSWERABILITY_PROMPT = ChatPromptTemplate.from_template(
-#     """
-# You are an answerability checker for a company RAG system.
-
-# Determine whether the provided context contains enough information
-# to answer the user's question.
-
-# Return exactly one word:
-
-# YES
-# or
-# NO
-
-# Return YES only when the context contains information that directly
-# supports answering the question.
-
-# Return NO when:
-# - the context is unrelated
-# - the context is insufficient
-# - the answer requires information that is not present
-# - the context only partially supports the answer
-
-# Do not use outside knowledge.
-
-# Context:
-# {context}
-
-# Question:
-# {question}
-
-# Decision:
-# """
-# )
-
-
-# def answerability_guard(query: str, context: str) -> bool:
-#     # Returns True only when the retrieved context supports the question.
-#     llm = ChatOpenAI(
-#         model=CHAT_MODEL,
-#         temperature=0
-#     )
-
-#     chain = ANSWERABILITY_PROMPT | llm | StrOutputParser()
-
-#     decision = chain.invoke({
-#         "context": context,
-#         "question": query
-#     })
-
-#     return decision.strip().upper() == "YES"
-
-
 ANSWERABILITY_DISTANCE_THRESHOLD = float(
     os.getenv("ANSWERABILITY_DISTANCE_THRESHOLD")
 )
@@ -239,26 +154,7 @@ def answerability_guard(results) -> bool:
 # FINAL GROUNDED ANSWER
 
 # Generate the final response only after all guards have passed.
-ANSWER_PROMPT = ChatPromptTemplate.from_template(
-    """
-Answer the question using only the provided company context.
-
-Rules:
-- Use only information contained in the context.
-- Do not use outside knowledge.
-- Do not invent or assume missing information.
-- If the context does not contain the answer, say: "I can't find any relevant information related to this question."
-- Give a concise and direct answer.
-
-Context:
-{context}
-
-Question:
-{question}
-
-Answer:
-"""
-)
+ANSWER_PROMPT = load_prompt("guarded_answer")
 
 
 def generate_answer(query: str, context: str) -> str:

@@ -6,8 +6,8 @@ import chromadb
 load_dotenv()
 
 client = chromadb.HttpClient(
-    host=os.getenv("CHROMA_HOST", "localhost"),
-    port=int(os.getenv("CHROMA_PORT", 8000)),
+    host=os.getenv("CHROMA_HOST"),
+    port=int(os.getenv("CHROMA_PORT")),
 )
 
 if __name__ == "__main__":

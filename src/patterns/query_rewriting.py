@@ -1,19 +1,15 @@
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, load_prompt
 from langchain_core.output_parsers import StrOutputParser
 
-from retrieved_chunks import get_vectorstore, TOP_K
-from basic_rag import PROMPT, CHAT_MODEL, print_retrieved, build_context
+from src.core.retrieved_chunks import get_vectorstore, TOP_K
+from src.core.basic_rag import PROMPT, CHAT_MODEL, print_retrieved, build_context
+from src.core.prompts import load_prompt
 
 load_dotenv()
 
-REWRITE_PROMPT = ChatPromptTemplate.from_template(
-    "Rewrite the following user question into a clear, standalone search query "
-    "suitable for retrieving relevant document chunks. Keep it concise and factual. "
-    "Output only the rewritten query, nothing else.\n\n"
-    "Question: {question}\n\nRewritten query:"
-)
+REWRITE_PROMPT = load_prompt("query_rewrite")
 
 
 def rewrite_query(query: str) -> str:

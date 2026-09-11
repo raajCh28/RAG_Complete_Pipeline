@@ -1,10 +1,10 @@
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
-from retrieved_chunks import get_vectorstore, TOP_K
-from basic_rag import PROMPT, CHAT_MODEL, build_context
+from src.core.retrieved_chunks import get_vectorstore, TOP_K
+from src.core.basic_rag import PROMPT, CHAT_MODEL, build_context
+from src.core.prompts import load_prompt
 
 load_dotenv()
 
@@ -15,37 +15,7 @@ RETRIEVAL_K = 10
 FINAL_K = TOP_K
 
 
-RERANK_PROMPT = ChatPromptTemplate.from_template(
-    """
-You are a document relevance evaluator.
-
-Your task is to determine how relevant the following document
-chunk is to the user's question.
-
-Give a relevance score from 0 to 10:
-
-10 = Directly and completely answers the question
-8-9 = Highly relevant and contains most of the required information
-6-7 = Relevant but only partially answers the question
-4-5 = Somewhat related but does not answer the question well
-2-3 = Weakly related
-0-1 = Not relevant
-
-IMPORTANT:
-- Judge relevance to the question, not writing quality.
-- Do not use information outside the provided chunk.
-- Return ONLY the numeric score.
-- Do not provide an explanation.
-
-User Question:
-{question}
-
-Document Chunk:
-{document}
-
-Relevance Score:
-"""
-)
+RERANK_PROMPT = load_prompt("rerank_score")
 
 
 # ---------------------------------------------------------

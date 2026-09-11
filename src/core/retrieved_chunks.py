@@ -8,23 +8,16 @@ from langchain_chroma import Chroma
 
 load_dotenv()
 
-COLLECTION_NAME = os.getenv(
-    "COLLECTION_NAME",
-    "new_documents"
-)
+COLLECTION_NAME = os.getenv("COLLECTION_NAME")
 
-EMBEDDING_MODEL = os.getenv(
-    "EMBEDDING_MODEL",
-    "text-embedding-3-small"
-)
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL")
 
-TOP_K = int(os.getenv("TOP_K", 4))
-
+TOP_K = int(os.getenv("TOP_K"))
 
 def get_chroma_client():
     return chromadb.HttpClient(
-        host=os.getenv("CHROMA_HOST", "localhost"),
-        port=int(os.getenv("CHROMA_PORT", 8000)),
+        host=os.getenv("CHROMA_HOST"),
+        port=int(os.getenv("CHROMA_PORT")),
     )
 
 

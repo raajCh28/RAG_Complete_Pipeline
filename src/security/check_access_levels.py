@@ -7,15 +7,15 @@ from langchain_openai import OpenAIEmbeddings
 
 load_dotenv()
 
-COLLECTION_NAME = os.getenv("COLLECTION_NAME", "new_documents")
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+COLLECTION_NAME = os.getenv("COLLECTION_NAME")
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL")
 
 
 def get_vectorstore():
     # Connects to the existing Chroma collection.
     chroma_client = chromadb.HttpClient(
-        host=os.getenv("CHROMA_HOST", "172.31.32.85"),
-        port=int(os.getenv("CHROMA_PORT", 8000)),
+        host=os.getenv("CHROMA_HOST"),
+        port=int(os.getenv("CHROMA_PORT")),
     )
 
     return Chroma(
