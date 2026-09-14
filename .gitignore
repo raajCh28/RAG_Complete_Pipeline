@@ -13,6 +13,7 @@ __pycache__/
 data/
 chroma_db/
 *.sqlite3
+ingestion_registry.json
 
 # Local editor and OS files
 .vscode/
